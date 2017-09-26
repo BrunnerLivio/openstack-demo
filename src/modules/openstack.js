@@ -15,32 +15,36 @@ class Openstack {
         return new Promise((resolve, reject) => {
             this.keystone
                 .getToken(APP_CONFIG.AUTHENTICATION.USERNAME,
-                    APP_CONFIG.AUTHENTICATION.PASSWORD,
-                    (error, token) => {
-                        if (error) {
-                            reject(error);
-                        } else {
-                            this.general_token = token;
-                            resolve(token);
-                        }
-                    });
+                APP_CONFIG.AUTHENTICATION.PASSWORD,
+                (error, token) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        this.general_token = token;
+                        resolve(token);
+                    }
+                });
         });
     }
     _getProjectTokenById() {
         return new Promise((resolve, reject) => {
             this.keystone
                 .getProjectTokenById(this.general_token.token,
-                    APP_CONFIG.PROJECT_ID,
-                    (error, token) => {
-                        if (error) {
-                            reject(error);
-                        } else {
-                            this.project_token = token;
-                            this.nova = new OSWrap.Nova(NOVA_SERVER, token.token);
-                            resolve(token);
-                        }
-                    });
+                APP_CONFIG.PROJECT_ID,
+                (error, token) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        this.project_token = token;
+                        this.nova = new OSWrap.Nova(NOVA_SERVER, token.token);
+                        resolve(token);
+                    }
+                });
         });
+    }
+
+    hasTokenExpired() {
+        return new Date(this.general_token.expires_at) < new Date();
     }
 
     updateToken() {
@@ -54,7 +58,10 @@ class Openstack {
                 }, reject);
         });
     }
-    fetchServers() {
+    async fetchServers() {
+        if (this.hasTokenExpired()) {
+            await this.updateToken();
+        }
         return new Promise((resolve, reject) => {
             this.nova.listServers((error, servers) => {
                 if (error) {
@@ -92,7 +99,10 @@ class Openstack {
         });
     }
 
-    createServer(number) {
+    async createServer(number) {
+        if (this.hasTokenExpired()) {
+            await this.updateToken();
+        }
         return new Promise((resolve, reject) => {
             let vmsToCreate = number || 1;
             if (vmsToCreate + this.getServerCount() > APP_CONFIG.INSTANCES.MAX) {
@@ -122,7 +132,10 @@ class Openstack {
         });
     }
 
-    removeServer() {
+    async removeServer() {
+        if (this.hasTokenExpired()) {
+            await this.updateToken();
+        }
         return new Promise((resolve, reject) => {
             let serverToDelete = this.serverRepository.shiftServer();
             if (!serverToDelete) {
